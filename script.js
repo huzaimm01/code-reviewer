@@ -1,69 +1,97 @@
 document.getElementById("reviewButton").addEventListener("click", function () {
     const code = document.getElementById("codeInput").value;
     const language = document.getElementById("language").value;
-    let output = '';
+    const output = document.getElementById("output");
+    const downloadPdfButton = document.getElementById("downloadPdfButton");
+    output.textContent = ""; // Clear previous output
+    downloadPdfButton.style.display = 'none'; // Hide PDF download button by default
 
-    if (language === "js") {
-        reviewJavaScript(code).then(result => {
-            output = result;
-            document.getElementById("output").textContent = output;
+    let lintErrors = [];
+
+    try {
+        if (language === "htmlcss") {
+            // Simple HTML linting logic
+            lintErrors = code.includes("<script>") ? [] : [{ message: "No <script> tag found in HTML.", line: 1, column: 1 }];
+        } else if (language === "js") {
+            const results = eslint.verify(code);
+            lintErrors = results.map(err => ({
+                message: err.message,
+                line: err.line,
+                column: err.column,
+            }));
+        } else if (language === "c" || language === "cpp" || language === "csharp" || language === "rust") {
+            lintErrors = code.includes("main") ? [] : [{ message: "No main function found.", line: 1, column: 1 }];
+        } else if (language === "latex") {
+            lintErrors = code.includes("\\begin") ? [] : [{ message: "No LaTeX document structure found.", line: 1, column: 1 }];
+        }
+    } catch (error) {
+        lintErrors.push({ message: error.message });
+    }
+
+    if (lintErrors.length > 0) {
+        lintErrors.forEach(err => {
+            output.textContent += `Error: ${err.message} at line ${err.line}, column ${err.column}\n`;
         });
-    } else if (language === "css") {
-        reviewCSS(code).then(result => {
-            output = result;
-            document.getElementById("output").textContent = output;
-        });
-    } else if (language === "html") {
-        output = reviewHTML(code);
-        document.getElementById("output").textContent = output;
     } else {
-        output = "Language not supported.";
-        document.getElementById("output").textContent = output;
+        output.textContent = "No errors found!";
     }
 });
 
-// Function to review JavaScript
-async function reviewJavaScript(code) {
-    const linter = new eslint.ESLint();
-    const results = await linter.lintText(code);
-    const messages = results[0].messages;
-
-    if (messages.length === 0) {
-        return "JavaScript Review: No issues found.";
-    } else {
-        return messages.map(msg => `${msg.ruleId}: ${msg.message} (line ${msg.line}, column ${msg.column})`).join('\n');
-    }
-}
-
-// Function to review CSS
-async function reviewCSS(code) {
-    const result = await stylelint.lint({ code });
-    const warnings = result.warnings;
-
-    if (warnings.length === 0) {
-        return "CSS Review: No issues found.";
-    } else {
-        return warnings.map(w => `${w.text} (line ${w.line}, column ${w.column})`).join('\n');
-    }
-}
-
-// Function to review HTML
-function reviewHTML(code) {
-    const results = HTMLHint.verify(code);
-    if (results.length === 0) {
-        return "HTML Review: No issues found.";
-    } else {
-        return results.map(result => `${result.code}: ${result.message} (line ${result.line}, column ${result.col})`).join('\n');
-    }
-}
-
-// Function to execute JavaScript code
 document.getElementById("executeButton").addEventListener("click", function () {
-    const jsCode = document.getElementById("codeInput").value;
-    const iframe = document.getElementById("codeOutput");
-    const iframeWindow = iframe.contentWindow || iframe.contentDocument.defaultView;
+    const code = document.getElementById("codeInput").value;
+    const language = document.getElementById("language").value;
+    const iframeWindow = document.getElementById("codeOutput").contentWindow;
 
-    iframeWindow.document.open();
-    iframeWindow.document.write('<html><body><script>' + jsCode + '</script></body></html>');
-    iframeWindow.document.close();
+    let htmlContent = `
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Code Execution</title>
+            <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+        </head>
+        <body>
+    `;
+
+    try {
+        if (language === 'htmlcss') {
+            htmlContent += code;
+        } else if (language === 'js') {
+            htmlContent += `<script>${code}<\/script>`;
+        } else if (language === 'latex') {
+            htmlContent += `<div style="font-family: 'Verdana', sans-serif;">\\[${code}\\]</div>`;
+            document.getElementById("downloadPdfButton").style.display = 'inline'; // Show PDF download button for LaTeX
+        } else {
+            // For other languages, just show the code since we cannot execute them directly in the browser
+            htmlContent += `<pre>${code}</pre>`;
+        }
+    } catch (error) {
+        document.body.insertAdjacentHTML('beforeend', '<p style="color: red;">Error: ' + error.message + '</p>');
+    }
+
+    htmlContent += `
+        </body>
+        </html>
+    `;
+
+    try {
+        iframeWindow.document.open();
+        iframeWindow.document.write(htmlContent);
+        iframeWindow.document.close();
+        // Render the MathJax to process LaTeX
+        iframeWindow.MathJax.typeset();
+    } catch (error) {
+        console.error("Error executing code:", error);
+        document.getElementById("output").textContent = "Error executing code: " + error.message;
+    }
+});
+
+// Function to download LaTeX content as PDF
+document.getElementById("downloadPdfButton").addEventListener("click", function () {
+    const latexCode = document.getElementById("codeInput").value;
+    const pdf = new jsPDF();
+
+    pdf.text(latexCode, 10, 10); // Add LaTeX code to PDF at position (10, 10)
+    pdf.save("document.pdf"); // Save the PDF with the filename "document.pdf"
 });
