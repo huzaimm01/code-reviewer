@@ -25,4 +25,4 @@ The **Code Reviewer** is a versatile web application designed to review and exec
 
 1. Clone the repository to your local machine:
    ```bash
-   git clone https://github.com/yourusername/code-reviewer.git
+   git clone https://github.com/huzaimm01/code-reviewer.git
